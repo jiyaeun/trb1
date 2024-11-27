@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>시간표 생성기</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+    }
+    .section {
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      text-align: center;
+      padding: 10px;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+    td {
+      cursor: pointer;
+      user-select: none;
+    }
+    input[type="range"] {
+      width: 150px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>시간표 생성기</h1>
+
+    <!-- 과목 선택 -->
+    <div class="section">
+      <h2>과목 선택</h2>
+      <div id="subjectGroup">
+        <label><input type="checkbox" value="수학"> 수학</label>
+        <label><input type="checkbox" value="영어"> 영어</label>
+        <label><input type="checkbox" value="논술"> 논술</label>
+        <label><input type="checkbox" value="미술"> 미술</label>
+        <label><input type="checkbox" value="피아노"> 피아노</label>
+        <label><input type="checkbox" value="태권도"> 태권도</label>
+        <label><input type="checkbox" value="수영"> 수영</label>
+      </div>
+    </div>
+
+    <!-- 과목별 설정 -->
+    <div class="section">
+      <h2>과목별 설정</h2>
+      <div id="subjectSettings"></div>
+    </div>
+
+    <!-- 요일별 시간 설정 -->
+    <div class="section">
+      <h2>요일별 시간 설정</h2>
+      <div id="dayTimeSettings"></div>
+    </div>
+
+    <!-- 버튼 -->
+    <div class="section">
+      <button id="generateButton">시간표 생성</button>
+    </div>
+
+    <!-- 결과 시간표 -->
+    <table id="timetable">
+      <thead>
+        <tr>
+          <th>시간</th>
+          <th>월요일</th>
+          <th>화요일</th>
+          <th>수요일</th>
+          <th>목요일</th>
+          <th>금요일</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const subjectGroup = document.getElementById('subjectGroup');
+    const subjectSettings = document.getElementById('subjectSettings');
+    const dayTimeSettings = document.getElementById('dayTimeSettings');
+    const timetableBody = document.querySelector('#timetable tbody');
+    const generateButton = document.getElementById('generateButton');
+    const days = ["월요일", "화요일", "수요일", "목요일", "금요일"];
+
+    // 요일별 시간 설정 슬라이더
+    dayTimeSettings.innerHTML = days
+      .map(day => `
+        <h3>${day}</h3>
+        시작 
+        <input type="range" min="540" max="1200" step="30" value="540" id="${day}-start" oninput="updateTime('${day}-start', this.value)" />
+        <span id="${day}-start-label">09:00</span>
+        끝 
+        <input type="range" min="540" max="1200" step="30" value="1080" id="${day}-end" oninput="updateTime('${day}-end', this.value)" />
+        <span id="${day}-end-label">18:00</span>
+      `)
+      .join('');
+
+    function updateTime(labelId, value) {
+      const hours = Math.floor(value / 60);
+      const minutes = value % 60;
+      const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      document.getElementById(labelId + '-label').innerText = formattedTime;
+    }
+
+    subjectGroup.addEventListener('change', () => {
+      subjectSettings.innerHTML = '';
+      Array.from(subjectGroup.querySelectorAll('input:checked')).forEach(subject => {
+        const subjectDiv = document.createElement('div');
+        subjectDiv.innerHTML = `
+          <h3>${subject.value}</h3>
+          <label>주당 횟수: <input type="number" min="1" max="10" value="2" data-subject="${subject.value}" /></label>
+          <br />
+          <label>세션 길이 (시간): <input type="number" min="1" max="3" value="1" data-session-length="${subject.value}" /> 시간</label>
+          <br />
+          요일 설정: 
+          ${days.map(day => `<label><input type="checkbox" value="${day}" data-subject-day="${subject.value}"> ${day}</label>`).join('')}
+          <br />
+          시간 설정: 
+          시작 <input type="range" min="540" max="1200" step="30" value="540" data-start="${subject.value}" oninput="updateSubjectTime('${subject.value}-start', this.value)" />
+          <span id="${subject.value}-start">09:00</span>
+          끝 <input type="range" min="540" max="1200" step="30" value="1080" data-end="${subject.value}" oninput="updateSubjectTime('${subject.value}-end', this.value)" />
+          <span id="${subject.value}-end">18:00</span>
+        `;
+        subjectSettings.appendChild(subjectDiv);
+      });
+    });
+
+    function updateSubjectTime(labelId, value) {
+      const hours = Math.floor(value / 60);
+      const minutes = value % 60;
+      const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      document.getElementById(labelId).innerText = formattedTime;
+    }
+
+    function generateTimetable() {
+      timetableBody.innerHTML = ''; // 기존 시간표 초기화
+      const timetable = {};
+      days.forEach(day => timetable[day] = Array(12).fill('')); // 초기화
+
+      const subjects = Array.from(subjectGroup.querySelectorAll('input:checked')).map(input => input.value);
+      if (subjects.length === 0) {
+        alert('과목을 선택하세요.');
+        return;
+      }
+
+      const subjectDetails = {};
+      subjects.forEach(subject => {
+        const times = {
+          start: parseInt(document.querySelector(`[data-start="${subject}"]`).value),
+          end: parseInt(document.querySelector(`[data-end="${subject}"]`).value)
+        };
+        let daysAllowed = Array.from(document.querySelectorAll(`[data-subject-day="${subject}"]:checked`)).map(input => input.value);
+        const weeklyCount = parseInt(document.querySelector(`[data-subject="${subject}"]`).value);
+        const sessionLength = parseInt(document.querySelector(`[data-session-length="${subject}"]`).value);
+
+        // 요일 체크가 없을 경우 랜덤으로 요일 설정
+        if (daysAllowed.length === 0) {
+          while (daysAllowed.length < Math.min(weeklyCount, days.length)) {
+            const randomDay = days[Math.floor(Math.random() * days.length)];
+            if (!daysAllowed.includes(randomDay)) {
+              daysAllowed.push(randomDay);
+            }
+          }
+        }
+
+        subjectDetails[subject] = { daysAllowed, times, weeklyCount, sessionLength };
+      });
+
+      let maxAttempts = 5000; // 최대 반복 제한
+      let attemptCounter = 0;
+
+      subjects.forEach(subject => {
+        const { daysAllowed, times, weeklyCount, sessionLength } = subjectDetails[subject];
+        let assignedCount = 0;
+
+        daysAllowed.forEach(day => {
+          if (assignedCount >= weeklyCount) return;
+
+          const dayStart = parseInt(document.getElementById(`${day}-start`).value);
+          const dayEnd = parseInt(document.getElementById(`${day}-end`).value);
+
+          if (!dayStart || !dayEnd || dayStart >= dayEnd) return;
+
+          const overlapStart = Math.max(times.start, dayStart);
+          const overlapEnd = Math.min(times.end, dayEnd);
+
+          if (overlapStart >= overlapEnd) return;
+
+          const startIdx = (overlapStart - 540) / 60;
+          const endIdx = (overlapEnd - 540) / 60;
+
+          for (let i = startIdx; i <= endIdx - sessionLength && assignedCount < weeklyCount; i++) {
+            if (timetable[day].slice(i, i + sessionLength).every(slot => slot === '') && !timetable[day].includes(subject)) {
+              for (let j = 0; j < sessionLength; j++) {
+                timetable[day][i + j] = subject;
+              }
+              assignedCount++;
+            }
+          }
+        });
+      });
+
+      for (let i = 540; i < 1200; i += 60) {
+        const row = document.createElement('tr');
+        const hour = Math.floor(i / 60);
+        row.innerHTML = `<td>${hour}:00</td>`;
+        let rowHasData = false;
+
+        days.forEach(day => {
+          const timeIndex = (i - 540) / 60;
+          const cellValue = timetable[day][timeIndex] || '';
+          row.innerHTML += `<td>${cellValue}</td>`;
+          if (cellValue) rowHasData = true;
+        });
+
+        if (rowHasData) timetableBody.appendChild(row);
+      }
+
+      if (attemptCounter >= maxAttempts) {
+        alert('조건에 맞는 시간표를 생성할 수 없습니다. 설정을 조정하세요.');
+      }
+    }
+
+    generateButton.addEventListener('click', generateTimetable);
+  </script>
+</body>
+</html>
